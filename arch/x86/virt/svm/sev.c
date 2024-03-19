@@ -120,7 +120,7 @@ static __init void snp_enable(void *arg)
 static u64 allocated_rmp_base = 0;
 static u64 allocated_rmp_end = 0x1ffff;
 static bool __ro_after_init alloc_rmp = false;
-static init __init setalloc_rmp(char *str)
+static __init setalloc_rmp(char *str)
 {
 	alloc_rmp = true;
 	return 0
