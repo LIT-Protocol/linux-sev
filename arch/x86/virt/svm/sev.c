@@ -123,7 +123,7 @@ static bool __ro_after_init alloc_rmp = false;
 static int setalloc_rmp(char *str)
 {
 	alloc_rmp = true;
-	return 0
+	return 0;
 };
 
 early_param("alloc_rmp", setalloc_rmp);
