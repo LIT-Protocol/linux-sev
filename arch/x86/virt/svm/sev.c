@@ -150,17 +150,15 @@ void __init alloc_rmp_init(void)
 	allocated_rmp_base = rmp_base;
 	allocated_rmp_end = rmp_base + calc_rmp_sz - 1;
 
+	wrmsrl(MSR_AMD64_RMP_BASE, allocated_rmp_base);
+	wrmsrl(MSR_AMD64_RMP_END, allocated_rmp_end);
+
 	return;
 }
 
 bool snp_probe_rmptable_info(void)
 {
 	u64 max_rmp_pfn, calc_rmp_sz, rmp_sz, rmp_base, rmp_end;
-
-	if (alloc_rmp) {
-		wrmsrl(MSR_AMD64_RMP_BASE, allocated_rmp_base);
-		wrmsrl(MSR_AMD64_RMP_END, allocated_rmp_end);
-	}
 
 	rdmsrl(MSR_AMD64_RMP_BASE, rmp_base);
 	rdmsrl(MSR_AMD64_RMP_END, rmp_end);
