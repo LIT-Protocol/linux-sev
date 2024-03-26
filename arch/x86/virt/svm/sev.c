@@ -115,10 +115,6 @@ static __init void snp_enable(void *arg)
 	__snp_enable(smp_processor_id());
 }
 
-static bool __ro_after_init alloc_rmp = false;
-static u64 allocated_rmp_base = 0;
-static u64 allocated_rmp_end = 0x1ffff;
-
 #define RMP_ADDR_MASK GENMASK_ULL(51, 13)
 
 static bool __ro_after_init alloc_rmp = false;
