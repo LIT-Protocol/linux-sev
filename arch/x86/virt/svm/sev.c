@@ -37,15 +37,9 @@
 struct rmpentry {
 	union {
 		struct {
-			u64 assigned	: 1,
-			    pagesize	: 1,
-			    immutable	: 1,
-			    rsvd1	: 9,
-			    gpa		: 39,
-			    asid	: 10,
-			    vmsa	: 1,
-			    validated	: 1,
-			    rsvd2	: 1;
+			u64 assigned : 1, pagesize : 1, immutable : 1,
+				rsvd1 : 9, gpa : 39, asid : 10, vmsa : 1,
+				validated : 1, rsvd2 : 1;
 		};
 		u64 lo;
 	};
@@ -56,10 +50,10 @@ struct rmpentry {
  * The first 16KB from the RMP_BASE is used by the processor for the
  * bookkeeping, the range needs to be added during the RMP entry lookup.
  */
-#define RMPTABLE_CPU_BOOKKEEPING_SZ	0x4000
+#define RMPTABLE_CPU_BOOKKEEPING_SZ 0x4000
 
 /* Mask to apply to a PFN to get the first PFN of a 2MB page */
-#define PFN_PMD_MASK	GENMASK_ULL(63, PMD_SHIFT - PAGE_SHIFT)
+#define PFN_PMD_MASK GENMASK_ULL(63, PMD_SHIFT - PAGE_SHIFT)
 
 static u64 probed_rmp_base, probed_rmp_size;
 static struct rmpentry *rmptable __ro_after_init;
@@ -76,7 +70,7 @@ static u64 snp_transaction_id;
 static bool snp_transaction_pending;
 
 #undef pr_fmt
-#define pr_fmt(fmt)	"SEV-SNP: " fmt
+#define pr_fmt(fmt) "SEV-SNP: " fmt
 
 static int __mfd_enable(unsigned int cpu)
 {
@@ -121,11 +115,57 @@ static __init void snp_enable(void *arg)
 	__snp_enable(smp_processor_id());
 }
 
+static bool __ro_after_init alloc_rmp = false;
+static u64 allocated_rmp_base = 0;
+static u64 allocated_rmp_end = 0x1ffff;
+
 #define RMP_ADDR_MASK GENMASK_ULL(51, 13)
+
+static bool __ro_after_init alloc_rmp = false;
+static int __init setalloc_rmp(char *str)
+{
+	alloc_rmp = true;
+	return 0;
+}
+
+early_param("alloc_rmp", setalloc_rmp);
+
+static u64 allocated_rmp_base = 0;
+static u64 allocated_rmp_end = 0x1ffff;
+
+void __init alloc_rmp_init(void)
+{
+	u64 calc_rmp_sz, rmp_base, rmp_end;
+
+	if (!alloc_rmp)
+		return;
+
+	pr_info("Allocating memory for the RMP table\n");
+
+	// Calculate the amount the memory to reserve.
+	calc_rmp_sz =
+		ALIGN((max_pfn << 4) + RMPTABLE_CPU_BOOKKEEPING_SZ, HPAGE_SIZE);
+
+	rmp_base = memblock_phys_alloc(calc_rmp_sz, 0x200000);
+	if (!rmp_base) {
+		pr_err("Failed to allocate memory for the RMP table\n");
+		return;
+	}
+
+	allocated_rmp_base = rmp_base;
+	allocated_rmp_end = rmp_base + calc_rmp_sz - 1;
+
+	return;
+}
 
 bool snp_probe_rmptable_info(void)
 {
 	u64 max_rmp_pfn, calc_rmp_sz, rmp_sz, rmp_base, rmp_end;
+
+	if (alloc_rmp) {
+		wrmsrl(MSR_AMD64_RMP_BASE, allocated_rmp_base);
+		wrmsrl(MSR_AMD64_RMP_END, allocated_rmp_end);
+	}
 
 	rdmsrl(MSR_AMD64_RMP_BASE, rmp_base);
 	rdmsrl(MSR_AMD64_RMP_END, rmp_end);
@@ -136,7 +176,8 @@ bool snp_probe_rmptable_info(void)
 	}
 
 	if (rmp_base > rmp_end) {
-		pr_err("RMP configuration not valid: base=%#llx, end=%#llx\n", rmp_base, rmp_end);
+		pr_err("RMP configuration not valid: base=%#llx, end=%#llx\n",
+		       rmp_base, rmp_end);
 		return false;
 	}
 
@@ -188,7 +229,8 @@ static int __init snp_rmptable_init(void)
 	if (!probed_rmp_size)
 		goto nosnp;
 
-	rmptable_start = memremap(probed_rmp_base, probed_rmp_size, MEMREMAP_WB);
+	rmptable_start =
+		memremap(probed_rmp_base, probed_rmp_size, MEMREMAP_WB);
 	if (!rmptable_start) {
 		pr_err("Failed to map RMP table\n");
 		return 1;
@@ -219,7 +261,8 @@ skip_enable:
 	rmptable = (struct rmpentry *)rmptable_start;
 	rmptable_max_pfn = rmptable_size / sizeof(struct rmpentry) - 1;
 
-	cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "x86/rmptable_init:online", __snp_enable, NULL);
+	cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "x86/rmptable_init:online",
+			  __snp_enable, NULL);
 
 	/*
 	 * Setting crash_kexec_post_notifiers to 'true' to ensure that SNP panic
@@ -305,8 +348,8 @@ static void dump_rmpentry(u64 pfn)
 	}
 
 	if (e->assigned) {
-		pr_info("PFN 0x%llx, RMP entry: [0x%016llx - 0x%016llx]\n",
-			pfn, e->lo, e->hi);
+		pr_info("PFN 0x%llx, RMP entry: [0x%016llx - 0x%016llx]\n", pfn,
+			e->lo, e->hi);
 		return;
 	}
 
@@ -334,7 +377,8 @@ static void dump_rmpentry(u64 pfn)
 		}
 
 		if (e->lo || e->hi)
-			pr_info("PFN: 0x%llx, [0x%016llx - 0x%016llx]\n", pfn_i, e->lo, e->hi);
+			pr_info("PFN: 0x%llx, [0x%016llx - 0x%016llx]\n", pfn_i,
+				e->lo, e->hi);
 		pfn_i++;
 	}
 }
@@ -351,7 +395,8 @@ void snp_dump_hva_rmpentry(unsigned long hva)
 	pte = lookup_address_in_pgd(pgd, hva, &level);
 
 	if (!pte) {
-		pr_err("Can't dump RMP entry for HVA %lx: no PTE/PFN found\n", hva);
+		pr_err("Can't dump RMP entry for HVA %lx: no PTE/PFN found\n",
+		       hva);
 		return;
 	}
 
@@ -376,9 +421,9 @@ int psmash(u64 pfn)
 
 	/* Binutils version 2.36 supports the PSMASH mnemonic. */
 	asm volatile(".byte 0xF3, 0x0F, 0x01, 0xFF"
-		      : "=a" (ret)
-		      : "a" (paddr)
-		      : "memory", "cc");
+		     : "=a"(ret)
+		     : "a"(paddr)
+		     : "memory", "cc");
 
 	return ret;
 }
@@ -430,8 +475,8 @@ static int adjust_direct_map(u64 pfn, int rmp_level)
 	if (!pfn_valid(pfn))
 		return -EINVAL;
 
-	if (rmp_level == PG_LEVEL_2M &&
-	    (!IS_ALIGNED(pfn, PTRS_PER_PMD) || !pfn_valid(pfn + PTRS_PER_PMD - 1)))
+	if (rmp_level == PG_LEVEL_2M && (!IS_ALIGNED(pfn, PTRS_PER_PMD) ||
+					 !pfn_valid(pfn + PTRS_PER_PMD - 1)))
 		return -EINVAL;
 
 	/*
@@ -488,8 +533,8 @@ static int rmpupdate(u64 pfn, struct rmp_state *state)
 	do {
 		/* Binutils version 2.36 supports the RMPUPDATE mnemonic. */
 		asm volatile(".byte 0xF2, 0x0F, 0x01, 0xFE"
-			     : "=a" (ret)
-			     : "a" (paddr), "c" ((unsigned long)state)
+			     : "=a"(ret)
+			     : "a"(paddr), "c"((unsigned long)state)
 			     : "memory", "cc");
 	} while (ret == RMPUPDATE_FAIL_OVERLAP);
 
@@ -505,7 +550,8 @@ static int rmpupdate(u64 pfn, struct rmp_state *state)
 }
 
 /* Transition a page to guest-owned/private state in the RMP table. */
-int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, u32 asid, bool immutable)
+int rmp_make_private(u64 pfn, u64 gpa, enum pg_level level, u32 asid,
+		     bool immutable)
 {
 	struct rmp_state state;
 
@@ -540,7 +586,6 @@ void snp_leak_pages(u64 pfn, unsigned int npages)
 
 	spin_lock(&snp_leaked_pages_list_lock);
 	while (npages--) {
-
 		/*
 		 * Reuse the page's buddy list for chaining into the leaked
 		 * pages list. This page should not be on a free list currently
@@ -548,12 +593,13 @@ void snp_leak_pages(u64 pfn, unsigned int npages)
 		 */
 		if (likely(!PageCompound(page)) ||
 
-			/*
+		    /*
 			 * Skip inserting tail pages of compound page as
 			 * page->buddy_list of tail pages is not usable.
 			 */
 		    (PageHead(page) && compound_nr(page) <= npages))
-			list_add_tail(&page->buddy_list, &snp_leaked_pages_list);
+			list_add_tail(&page->buddy_list,
+				      &snp_leaked_pages_list);
 
 		dump_rmpentry(pfn);
 		snp_nr_leaked_pages++;
