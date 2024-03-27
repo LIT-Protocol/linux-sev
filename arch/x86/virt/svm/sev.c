@@ -158,6 +158,8 @@ bool snp_probe_rmptable_info(void)
 {
 	u64 max_rmp_pfn, calc_rmp_sz, rmp_sz, rmp_base, rmp_end;
 
+	alloc_rmp_init();
+
 	if (alloc_rmp) {
 		wrmsrl(MSR_AMD64_RMP_BASE, allocated_rmp_base);
 		wrmsrl(MSR_AMD64_RMP_END, allocated_rmp_end);
